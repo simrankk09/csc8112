@@ -48,25 +48,40 @@ def on_message(c, u, m):
 def make_charts():
     df = pd.DataFrame(rows, columns=["Timestamp", "Value", "Quality"]).sort_values("Timestamp")
     df["Time"] = pd.to_datetime(df["Timestamp"], unit="ms")
-    plt.figure(figsize=(12, 5))
-    plt.plot(df["Time"], df["Value"])
-    plt.title("PM2.5 over time"); plt.xlabel("Time"); plt.ylabel("PM2.5")
-    plt.savefig(os.path.join(OUT, "chart1_line.png")); plt.close()
-    counts = df["Quality"].value_counts()
-    cols = [COLORS[c] for c in counts.index]
+    order = ["GREEN", "YELLOW", "RED"]
+    counts = df["Quality"].value_counts().reindex(order).fillna(0)
+
     plt.figure()
-    plt.bar(counts.index, counts.values, color=cols)
-    plt.title("Readings per air quality class"); plt.ylabel("Count")
-    plt.savefig(os.path.join(OUT, "chart2_bar.png")); plt.close()
-    plt.figure()
-    plt.pie(counts.values, labels=counts.index, colors=cols, autopct="%1.1f%%")
-    plt.title("Share of each air quality class")
-    plt.savefig(os.path.join(OUT, "chart3_pie.png")); plt.close()
+    plt.bar(order, counts.values, color=[COLORS[c] for c in order])
+    for i, v in enumerate(counts.values):
+        plt.text(i, v, int(v), ha="center", va="bottom")
+    plt.title("Count of Green / Yellow / Red classifications"); plt.ylabel("Count")
+    plt.savefig(os.path.join(OUT, "chart1_bar.png")); plt.close()
+
     plt.figure(figsize=(12, 5))
-    for q, g in df.groupby("Quality"):
+    for q in order:
+        g = df[df["Quality"] == q]
         plt.scatter(g["Time"], g["Value"], s=6, c=COLORS[q], label=q)
-    plt.legend(); plt.title("PM2.5 coloured by class"); plt.xlabel("Time"); plt.ylabel("PM2.5")
-    plt.savefig(os.path.join(OUT, "chart4_scatter.png")); plt.close()
+    plt.legend(); plt.title("PM2.5 over time, coloured by classification")
+    plt.xlabel("Time"); plt.ylabel("PM2.5")
+    plt.savefig(os.path.join(OUT, "chart2_timeseries.png")); plt.close()
+
+    plt.figure()
+    plt.hist(df["Value"], bins=40)
+    plt.title("PM2.5 value frequency distribution")
+    plt.xlabel("PM2.5"); plt.ylabel("Frequency")
+    plt.savefig(os.path.join(OUT, "chart3_frequency.png")); plt.close()
+
+    summary = df.groupby("Quality")["Value"].agg(["count", "min", "max", "mean"]).round(2)
+    summary["share %"] = (summary["count"] / len(df) * 100).round(1)
+    print(summary, flush=True)
+    table = summary.reset_index().astype(str).values.tolist()
+    fig, ax = plt.subplots(figsize=(8, 2.5))
+    ax.axis("off")
+    tb = ax.table(cellText=table, colLabels=["Class", "Count", "Min", "Max", "Mean", "Share %"], loc="center")
+    tb.scale(1, 1.6)
+    ax.set_title("Classification summary (total %d readings)" % len(df))
+    fig.savefig(os.path.join(OUT, "chart4_summary.png")); plt.close(fig)
     print("charts saved to", OUT, flush=True)
 
 client = mqtt.Client()
@@ -84,9 +99,10 @@ while True:
         labels = classify([v for _, v in batch])
         for (ts, v), q in zip(batch, labels):
             rows.append((ts, v, q))
-            client.publish("CSC8112/quality", json.dumps({"Timestamp": ts, "Value": v, "Quality": q}))
+            print("PM2.5 =", v, "->", q, flush=True)
+            client.publish("CSC8112/quality", json.dumps({"Timestamp": ts, "Value": v, "Quality": q}), retain=True)
         summary = {c: labels.count(c) for c in CLASSES}
-        print("batch", len(batch), summary, "| last:", batch[-1][1], labels[-1], "| total:", len(rows), flush=True)
+        print("BATCH of", len(batch), summary, "| total:", len(rows), flush=True)
     elif rows and not charts_done and time.time() - last[0] > IDLE:
         make_charts()
         charts_done = True
