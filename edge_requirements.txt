@@ -1,0 +1,5 @@
+paho-mqtt<2.0
+numpy
+pandas
+matplotlib
+ai-edge-litert
