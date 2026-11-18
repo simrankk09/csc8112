@@ -1,0 +1,33 @@
+services:
+  mosquitto:
+    image: eclipse-mosquitto
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
+  data_collector:
+    build: ./collector
+    image: data_collector:latest
+    environment:
+      - MQTT_HOST=mosquitto
+    depends_on:
+      - mosquitto
+    restart: on-failure
+  yolo_inference:
+    build: ./yolo
+    image: yolo_inference:latest
+    environment:
+      - MQTT_HOST=mosquitto
+    depends_on:
+      - mosquitto
+    restart: on-failure
+  predictor:
+    build: ./predictor
+    image: predictor:latest
+    environment:
+      - MQTT_HOST=mosquitto
+      - OUT_DIR=/output
+    volumes:
+      - ./output:/output
+    depends_on:
+      - mosquitto
