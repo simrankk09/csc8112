@@ -5,6 +5,7 @@ services:
       - "1883:1883"
     volumes:
       - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
+
   data_collector:
     build: ./collector
     image: data_collector:latest
@@ -13,6 +14,7 @@ services:
     depends_on:
       - mosquitto
     restart: on-failure
+
   yolo_inference:
     build: ./yolo
     image: yolo_inference:latest
@@ -21,6 +23,7 @@ services:
     depends_on:
       - mosquitto
     restart: on-failure
+
   predictor:
     build: ./predictor
     image: predictor:latest
@@ -31,6 +34,7 @@ services:
       - ./output:/output
     depends_on:
       - mosquitto
+
   edge:
     build: ./edge
     image: edge:latest
@@ -41,3 +45,12 @@ services:
       - ./output:/output
     depends_on:
       - mosquitto
+
+  decision:
+    build: ./decision
+    image: decision:latest
+    environment:
+      - MQTT_HOST=mosquitto
+    depends_on:
+      - mosquitto
+    restart: on-failure
