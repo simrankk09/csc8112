@@ -31,3 +31,13 @@ services:
       - ./output:/output
     depends_on:
       - mosquitto
+  edge:
+    build: ./edge
+    image: edge:latest
+    environment:
+      - MQTT_HOST=mosquitto
+      - OUT_DIR=/output/edge
+    volumes:
+      - ./output:/output
+    depends_on:
+      - mosquitto
